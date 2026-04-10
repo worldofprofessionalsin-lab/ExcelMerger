@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excel/CSV Merger</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121933;
+      --panel-2: #1a2345;
+      --text: #eef3ff;
+      --muted: #b8c3e1;
+      --accent: #6ea8fe;
+      --success: #1db58a;
+      --danger: #ff8a8a;
+      --border: #2a3768;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: #0b1020;
+      color: var(--text);
+    }
+    .wrap { max-width: 1320px; margin: 0 auto; padding: 24px; }
+    h1,h2,h3 { margin: 0 0 10px; }
+    p { margin: 0; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+    .stack { display: flex; flex-direction: column; gap: 16px; }
+    .card {
+      background: #121933;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.22);
+    }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    button, .file-label {
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.primary { background: linear-gradient(135deg, #3767ff, #2f8fff); border-color: #4f86ff; }
+    button.success { background: linear-gradient(135deg, #0f9d74, #1db58a); border-color: #28c397; }
+    button.danger { background: linear-gradient(135deg, #8d2b2b, #a83f3f); border-color: #c05757; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    input[type="file"] { display: none; }
+    input[type="text"] {
+      width: 100%;
+      background: #0d1430;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .rename-input {
+      background: #0d1430;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .muted { color: var(--muted); }
+    .listbox, .log, .table-wrap {
+      background: #0a1023;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      overflow: hidden;
+    }
+    .log {
+      max-height: 240px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .stat {
+      background: #0a1023;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .stat .k { font-size: 12px; color: var(--muted); }
+    .stat .v { font-size: 22px; font-weight: 800; margin-top: 6px; }
+    .header-grid-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #1a2342;
+      align-items: start;
+    }
+    .header-grid-row:last-child { border-bottom: 0; }
+    .select-stack { display: flex; flex-direction: column; gap: 8px; }
+    .select-stack { display: flex; flex-direction: column; gap: 8px; }
+    select {
+      width: 100%;
+      background: #0d1430;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .inline-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .mini-btn {
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #0d1430;
+      border: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .mini-btn.remove {
+      border-color: #8d2b2b;
+      color: #ffb3b3;
+    }
+    .header-grid-row.removed {
+      opacity: 0.55;
+    }
+    .removed-note {
+      font-size: 12px;
+      color: #ffb3b3;
+    }
+    .inline-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .mini-btn {
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #0d1430;
+      border: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .mini-btn.remove {
+      border-color: #8d2b2b;
+      color: #ffb3b3;
+    }
+    .header-grid-row.removed {
+      opacity: 0.55;
+    }
+    .removed-note {
+      font-size: 12px;
+      color: #ffb3b3;
+    }
+    
+    .pill {
+      display: inline-block;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 6px 6px 0;
+    }
+    .table-wrap { overflow: auto; max-height: 70vh; background:#0a1023; }
+    table { width: 100%; border-collapse: collapse; min-width: 900px; }
+    th, td { border-bottom: 1px solid #1a2342; padding: 10px; text-align: left; font-size: 13px; }
+    th { position: sticky; top: 0; background: #141d3e; z-index: 1; }
+    @media (max-width: 1100px) {
+      .grid { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div style="margin-bottom:16px;">
+      <h1>Excel/CSV Merger</h1>
+      <p>Upload files, folders, or ZIPs. Review unique headers, choose final column names, then merge and export.</p>
+    </div>
+
+    <div class="grid">
+      <div class="stack">
+        <div class="card">
+          <h2>1) Add inputs</h2>
+          <div class="row" style="margin-top:12px;">
+            <label class="file-label">
+              Add Files / ZIPs
+              <input id="fileInput" type="file" multiple accept=".csv,.xlsx,.xls,.zip" />
+            </label>
+            <label class="file-label">
+              Add Folder
+              <input id="folderInput" type="file" multiple webkitdirectory directory />
+            </label>
+            <button id="addFolderBtn" type="button">Add Another Folder</button>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <button id="scanBtn" class="primary">Scan</button>
+            <button id="clearBtn" class="danger">Clear</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>2) Files found</h2>
+          <div id="fileList" class="listbox muted">No files added yet.</div>
+        </div>
+
+        <div class="card">
+          <h2>3) Activity log</h2>
+          <div id="log" class="log"></div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <h2>Summary</h2>
+          <div class="stats">
+            <div class="stat"><div class="k">Datasets</div><div id="statDatasets" class="v">0</div></div>
+            <div class="stat"><div class="k">Rows</div><div id="statRows" class="v">0</div></div>
+            <div class="stat"><div class="k">Unique headers</div><div id="statHeaders" class="v">0</div></div>
+            <div class="stat"><div class="k">Merged rows</div><div id="statMerged" class="v">0</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <h2>4) Header list</h2>
+            <button id="prepareMergeBtn" class="primary">Prepare Merge</button>
+          </div>
+          <div class="muted" style="margin:8px 0 12px;">Left shows unique headers found across all sheets. Map two or more different headers to the same common name to merge them under one final heading.</div>
+          <div id="headerCatalog" class="listbox muted">No headers yet.</div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <h2>5) Preview</h2>
+            <div class="row">
+              <button id="downloadBtn" class="success" disabled>Download Excel</button>
+              <button id="downloadCsvBtn" disabled>Download CSV</button>
+            </div>
+          </div>
+          <div id="previewMeta" class="muted" style="margin:8px 0 12px;">Nothing prepared yet.</div>
+          <div class="table-wrap">
+            <table id="previewTable">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script>
+    const state = {
+      rawInputs: [],
+      rawInputKeys: new Set(),
+      datasets: [],
+      unifiedHeaders: [],
+      headerOverrides: new Map(),
+      allHeaderOptions: [],
+      removedHeaders: new Set(),
+      mergedRows: [],
+      folderSelections: 0,
+    };
+
+    
+
+    const els = {
+      fileInput: document.getElementById('fileInput'),
+      folderInput: document.getElementById('folderInput'),
+      addFolderBtn: document.getElementById('addFolderBtn'),
+      scanBtn: document.getElementById('scanBtn'),
+      clearBtn: document.getElementById('clearBtn'),
+      fileList: document.getElementById('fileList'),
+      log: document.getElementById('log'),
+      headerCatalog: document.getElementById('headerCatalog'),
+      prepareMergeBtn: document.getElementById('prepareMergeBtn'),
+      previewMeta: document.getElementById('previewMeta'),
+      previewTable: document.getElementById('previewTable'),
+      downloadBtn: document.getElementById('downloadBtn'),
+      downloadCsvBtn: document.getElementById('downloadCsvBtn'),
+      statDatasets: document.getElementById('statDatasets'),
+      statRows: document.getElementById('statRows'),
+      statHeaders: document.getElementById('statHeaders'),
+      statMerged: document.getElementById('statMerged'),
+    };
+
+    function log(message, kind = 'info') {
+      const prefix = kind === 'error' ? '[ERROR]' : kind === 'warn' ? '[WARN]' : '[INFO]';
+      const line = `${new Date().toLocaleTimeString()} ${prefix} ${message}`;
+      els.log.textContent += (els.log.textContent ? '\n' : '') + line;
+      els.log.scrollTop = els.log.scrollHeight;
+    }
+
+    function escapeHtml(v) {
+      return String(v ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function normalizeHeader(header) {
+      return String(header ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\r\n\t]+/g, ' ')
+        .replace(/[()\[\]{}]/g, ' ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\b(no|number)\b/g, ' no ')
+        .replace(/\bqty\b/g, ' quantity ')
+        .replace(/\bamt\b/g, ' amount ')
+        .replace(/\bid\b/g, ' id ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function titleCase(text) {
+      return String(text || '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .split(' ')
+        .filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+    }
+
+    function updateStats() {
+      els.statDatasets.textContent = String(state.datasets.length);
+      els.statRows.textContent = String(state.datasets.reduce((a, d) => a + d.rows.length, 0));
+      els.statHeaders.textContent = String(state.unifiedHeaders.filter(h => !state.removedHeaders.has(h.norm)).length);
+      els.statMerged.textContent = String(state.mergedRows.length);
+    }
+
+    function resetState() {
+      state.rawInputs = [];
+      state.rawInputKeys = new Set();
+      state.datasets = [];
+      state.unifiedHeaders = [];
+      state.headerOverrides = new Map();
+      state.allHeaderOptions = [];
+      state.removedHeaders = new Set();
+      state.mergedRows = [];
+      state.folderSelections = 0;
+      els.fileInput.value = '';
+      els.folderInput.value = '';
+      els.fileList.innerHTML = '<span class="muted">No files added yet.</span>';
+      els.headerCatalog.innerHTML = '<span class="muted">No headers yet.</span>';
+      els.previewMeta.textContent = 'Nothing prepared yet.';
+      els.previewTable.querySelector('thead').innerHTML = '';
+      els.previewTable.querySelector('tbody').innerHTML = '';
+      els.downloadBtn.disabled = true;
+      els.downloadCsvBtn.disabled = true;
+      els.log.textContent = '';
+      updateStats();
+    }
+
+    function isSupportedFile(name) {
+      return /\.(csv|xlsx|xls|zip)$/i.test(name || '');
+    }
+
+    async function addInputFiles(fileList, sourceType = 'files') {
+      const files = [...fileList].filter(f => isSupportedFile(f.name) || !f.name.includes('.'));
+      if (!files.length) {
+        log('No supported files detected.', 'warn');
+        return;
+      }
+      let added = 0;
+      let skipped = 0;
+      for (const file of files) {
+        const key = `${file.webkitRelativePath || file.name}__${file.size || 0}__${file.lastModified || 0}`;
+        if (state.rawInputKeys.has(key)) {
+          skipped++;
+          continue;
+        }
+        state.rawInputKeys.add(key);
+        state.rawInputs.push(file);
+        added++;
+      }
+      if (sourceType === 'folder' && added > 0) state.folderSelections += 1;
+      renderFileList();
+      log(`Added ${added} item(s)${skipped ? `, skipped ${skipped} duplicate(s)` : ''}.`);
+    }
+
+    function renderFileList() {
+      if (!state.rawInputs.length) {
+        els.fileList.innerHTML = '<span class="muted">No files added yet.</span>';
+        return;
+      }
+      const summary = `<div class="muted" style="padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid #1a2342;">Total items: ${state.rawInputs.length} | Folder selections: ${state.folderSelections}</div>`;
+      els.fileList.innerHTML = summary + state.rawInputs.map((f, i) => {
+        const name = escapeHtml(f.webkitRelativePath || f.name || `item-${i + 1}`);
+        const size = typeof f.size === 'number' ? ` - ${(f.size / 1024).toFixed(1)} KB` : '';
+        return `<div style="padding:6px 0;border-bottom:1px solid #1a2342;word-break:break-all;overflow-wrap:anywhere;">${i + 1}. ${name}<span class="muted">${size}</span></div>`;
+      }).join('');
+    }
+
+    function pickHeaderRow(rows) {
+      let bestIndex = 0;
+      let bestScore = -1;
+      const maxRows = Math.min(rows.length, 8);
+      for (let i = 0; i < maxRows; i++) {
+        const row = rows[i] || [];
+        const nonEmpty = row.filter(v => String(v ?? '').trim() !== '').length;
+        const unique = new Set(row.map(v => normalizeHeader(v)).filter(Boolean)).size;
+        const textish = row.filter(v => isNaN(Number(String(v).trim()))).length;
+        const score = (nonEmpty * 3) + (unique * 2) + textish;
+        if (score > bestScore) {
+          bestScore = score;
+          bestIndex = i;
+        }
+      }
+      return bestIndex;
+    }
+
+    function shouldFillDownColumn(header) {
+      const h = normalizeHeader(header);
+      return h && !/(amount|debit|credit|qty|quantity|rate|price|total|balance|id|number)$/.test(h);
+    }
+
+    function fillDownRows(headers, dataRows) {
+      const lastSeen = new Array(headers.length).fill('');
+      return dataRows.map(row => {
+        const next = [...row];
+        headers.forEach((header, i) => {
+          const value = String(next[i] ?? '').trim();
+          if (value !== '') lastSeen[i] = next[i];
+          else if (shouldFillDownColumn(header) && String(lastSeen[i] ?? '').trim() !== '') next[i] = lastSeen[i];
+        });
+        return next;
+      });
+    }
+
+    function sheetToDataset(rows, sourceName, sheetName) {
+      if (!rows || !rows.length) return null;
+      const headerRowIndex = pickHeaderRow(rows);
+      const rawHeaders = (rows[headerRowIndex] || []).map(v => String(v ?? '').trim());
+      const headers = rawHeaders.map((h, i) => h || `Column ${i + 1}`);
+      const rawBodyRows = rows.slice(headerRowIndex + 1).filter(r => r.some(v => String(v ?? '').trim() !== ''));
+      const bodyRows = fillDownRows(headers, rawBodyRows);
+      const objects = bodyRows.map(row => {
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = row[i] ?? '');
+        obj.__source_file = sourceName;
+        obj.__source_sheet = sheetName || '';
+        return obj;
+      });
+      return {
+        id: crypto.randomUUID(),
+        sourceName,
+        sheetName,
+        headers,
+        rows: objects,
+      };
+    }
+
+    function parseCsvText(text, sourceName) {
+      const wb = XLSX.read(text, { type: 'string' });
+      const sheetName = wb.SheetNames[0] || 'Sheet1';
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+      return [sheetToDataset(rows, sourceName, sheetName)].filter(Boolean);
+    }
+
+    function parseExcelArrayBuffer(buffer, sourceName) {
+      const wb = XLSX.read(buffer, { type: 'array', cellDates: true, raw: false });
+      const out = [];
+      for (const sheetName of wb.SheetNames) {
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+        const ds = sheetToDataset(rows, sourceName, sheetName);
+        if (ds) out.push(ds);
+      }
+      return out;
+    }
+
+    async function parseZip(file) {
+      const out = [];
+      const zip = await JSZip.loadAsync(await file.arrayBuffer());
+      const entries = Object.values(zip.files).filter(f => !f.dir && isSupportedFile(f.name) && !/\.zip$/i.test(f.name));
+      for (const entry of entries) {
+        const entryName = `${file.name} :: ${entry.name}`;
+        try {
+          if (/\.csv$/i.test(entry.name)) out.push(...parseCsvText(await entry.async('string'), entryName));
+          else if (/\.(xlsx|xls)$/i.test(entry.name)) out.push(...parseExcelArrayBuffer(await entry.async('arraybuffer'), entryName));
+          log(`Read ${entryName}`);
+        } catch (err) {
+          log(`Failed to read ${entryName}: ${err.message}`, 'error');
+        }
+      }
+      return out;
+    }
+
+    function buildUnifiedHeaders() {
+      const groups = new Map();
+      const optionSet = new Set();
+      for (const ds of state.datasets) {
+        for (const h of ds.headers) {
+          const norm = normalizeHeader(h);
+          if (!groups.has(norm)) groups.set(norm, new Set());
+          groups.get(norm).add(h);
+          optionSet.add(titleCase(h));
+        }
+      }
+      state.allHeaderOptions = Array.from(optionSet).sort((a, b) => a.localeCompare(b));
+      state.unifiedHeaders = Array.from(groups.entries()).map(([norm, originals]) => ({
+        norm,
+        originals: Array.from(originals),
+        label: state.headerOverrides.get(norm) || titleCase(Array.from(originals)[0]),
+        removed: state.removedHeaders.has(norm),
+      }));
+    }
+
+    function renderHeaderCatalog() {
+      if (!state.unifiedHeaders.length) {
+        els.headerCatalog.innerHTML = '<span class="muted">No headers yet.</span>';
+        return;
+      }
+
+      els.headerCatalog.innerHTML = state.unifiedHeaders.map(item => {
+        const current = state.headerOverrides.get(item.norm) || item.label;
+        return `
+          <div class="header-grid-row ${item.removed ? 'removed' : ''}">
+            <div>
+              ${item.originals.map(x => `<span class="pill">${escapeHtml(x)}</span>`).join(' ')}
+            </div>
+            <div class="select-stack">
+              <div class="inline-actions">
+                <select class="header-name-select" data-norm="${escapeHtml(item.norm)}" ${item.removed ? 'disabled' : ''}>
+                  <option value="">Select common name</option>
+                  ${state.allHeaderOptions.map(opt => `<option value="${escapeHtml(opt)}" ${opt === current ? 'selected' : ''}>${escapeHtml(opt)}</option>`).join('')}
+                </select>
+                <button type="button" class="mini-btn remove toggle-remove-btn" data-norm="${escapeHtml(item.norm)}">${item.removed ? 'Restore' : 'Remove'}</button>
+              </div>
+              <input class="header-name-input rename-input" data-norm="${escapeHtml(item.norm)}" value="${escapeHtml(current)}" placeholder="Rename common header" ${item.removed ? 'disabled' : ''} />
+              ${item.removed ? '<div class="removed-note">This header will be excluded from the merged output.</div>' : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      document.querySelectorAll('.toggle-remove-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+          const norm = e.currentTarget.getAttribute('data-norm');
+          if (state.removedHeaders.has(norm)) state.removedHeaders.delete(norm);
+          else state.removedHeaders.add(norm);
+          buildUnifiedHeaders();
+          renderHeaderCatalog();
+          updateStats();
+        });
+      });
+
+      document.querySelectorAll('.header-name-select').forEach(select => {
+        select.addEventListener('change', e => {
+          const norm = e.currentTarget.getAttribute('data-norm');
+          const value = e.currentTarget.value;
+          if (value) {
+            state.headerOverrides.set(norm, value);
+          } else {
+            state.headerOverrides.delete(norm);
+          }
+        });
+      });
+
+      document.querySelectorAll('.header-name-input').forEach(input => {
+        input.addEventListener('input', e => {
+          const norm = e.currentTarget.getAttribute('data-norm');
+          const value = e.currentTarget.value.trim();
+          if (value) {
+            state.headerOverrides.set(norm, value);
+          } else {
+            state.headerOverrides.delete(norm);
+          }
+        });
+      });
+    }
+
+    async function scanAllInputs() {
+      state.datasets = [];
+      state.unifiedHeaders = [];
+      state.mergedRows = [];
+      els.downloadBtn.disabled = true;
+      els.downloadCsvBtn.disabled = true;
+      els.previewMeta.textContent = 'Nothing prepared yet.';
+      els.previewTable.querySelector('thead').innerHTML = '';
+      els.previewTable.querySelector('tbody').innerHTML = '';
+
+      if (!state.rawInputs.length) {
+        log('Please add files or folders first.', 'warn');
+        return;
+      }
+
+      log('Starting scan...');
+      for (const input of state.rawInputs) {
+        const name = input.webkitRelativePath || input.name;
+        try {
+          if (/\.zip$/i.test(name)) state.datasets.push(...await parseZip(input));
+          else if (/\.csv$/i.test(name)) state.datasets.push(...parseCsvText(await input.text(), name));
+          else if (/\.(xlsx|xls)$/i.test(name)) state.datasets.push(...parseExcelArrayBuffer(await input.arrayBuffer(), name));
+          log(`Read ${name}`);
+        } catch (err) {
+          log(`Failed to parse ${name}: ${err.message}`, 'error');
+        }
+      }
+
+      if (!state.datasets.length) {
+        log('No readable datasets were found.', 'error');
+        updateStats();
+        return;
+      }
+
+      buildUnifiedHeaders();
+      renderHeaderCatalog();
+      updateStats();
+      log(`Parsed ${state.datasets.length} dataset(s).`);
+    }
+
+    function prepareMerge() {
+      if (!state.datasets.length) {
+        log('Scan files first.', 'warn');
+        return;
+      }
+
+      buildUnifiedHeaders();
+      const activeHeaders = state.unifiedHeaders.filter(h => !state.removedHeaders.has(h.norm));
+      const finalHeaders = [...new Set(activeHeaders.map(h => state.headerOverrides.get(h.norm) || h.label))];
+      const merged = [];
+
+      for (const ds of state.datasets) {
+        for (const row of ds.rows) {
+          const out = {};
+          finalHeaders.forEach(h => out[h] = '');
+          for (const [sourceHeader, value] of Object.entries(row)) {
+            if (sourceHeader === '__source_file' || sourceHeader === '__source_sheet') continue;
+            const norm = normalizeHeader(sourceHeader);
+            if (state.removedHeaders.has(norm)) continue;
+            const target = state.headerOverrides.get(norm) || state.unifiedHeaders.find(h => h.norm === norm)?.label || titleCase(sourceHeader);
+            const nextValue = value ?? '';
+            if (String(out[target] ?? '').trim() === '') {
+              out[target] = nextValue;
+            } else if (String(nextValue).trim() !== '' && String(out[target]) !== String(nextValue)) {
+              out[target] = `${out[target]} | ${nextValue}`;
+            }
+          }
+          out['__Source File'] = row.__source_file || ds.sourceName;
+          out['__Source Sheet'] = row.__source_sheet || ds.sheetName || '';
+          merged.push(out);
+        }
+      }
+
+      const displayHeaders = [...finalHeaders, '__Source File', '__Source Sheet'];
+      state.mergedRows = merged.map(r => {
+        const obj = {};
+        displayHeaders.forEach(h => obj[h] = r[h] ?? '');
+        return obj;
+      });
+
+      renderPreview(displayHeaders, state.mergedRows);
+      els.previewMeta.textContent = `Prepared ${state.mergedRows.length} merged row(s) with ${displayHeaders.length} column(s).`;
+      els.downloadBtn.disabled = !state.mergedRows.length;
+      els.downloadCsvBtn.disabled = !state.mergedRows.length;
+      updateStats();
+      log('Merge prepared successfully. Headers mapped to the same common name are merged into one final column.');
+    }
+
+    function renderPreview(headers, rows) {
+      els.previewTable.querySelector('thead').innerHTML = `<tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr>`;
+      const maxPreview = Math.min(rows.length, 50);
+      els.previewTable.querySelector('tbody').innerHTML = rows.slice(0, maxPreview).map(row => `<tr>${headers.map(h => `<td>${escapeHtml(row[h])}</td>`).join('')}</tr>`).join('');
+    }
+
+    function downloadExcel() {
+      if (!state.mergedRows.length) {
+        log('Nothing to download.', 'warn');
+        return;
+      }
+      const ws = XLSX.utils.json_to_sheet(state.mergedRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Merged Data');
+      const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true });
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'merged_output.xlsx';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+      log('Excel download started.');
+    }
+
+    function downloadCsv() {
+      if (!state.mergedRows.length) {
+        log('Nothing to download.', 'warn');
+        return;
+      }
+      const ws = XLSX.utils.json_to_sheet(state.mergedRows);
+      const csv = XLSX.utils.sheet_to_csv(ws);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'merged_output.csv';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+      log('CSV download started.');
+    }
+
+    els.fileInput.addEventListener('change', e => addInputFiles(e.target.files, 'files'));
+    els.folderInput.addEventListener('change', e => {
+      addInputFiles(e.target.files, 'folder');
+      e.target.value = '';
+    });
+    els.addFolderBtn.addEventListener('click', () => els.folderInput.click());
+    els.scanBtn.addEventListener('click', scanAllInputs);
+    els.clearBtn.addEventListener('click', resetState);
+    els.prepareMergeBtn.addEventListener('click', prepareMerge);
+    els.downloadBtn.addEventListener('click', downloadExcel);
+    els.downloadCsvBtn.addEventListener('click', downloadCsv);
+
+    
+
+    resetState();
+    log('Ready. Add files, ZIPs, or folders, then scan.');
+  </script>
+</body>
+</html>
