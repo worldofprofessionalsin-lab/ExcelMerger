@@ -136,12 +136,24 @@
       border-color: #8d2b2b;
       color: #ffb3b3;
     }
+    .mini-btn.toggle-on {
+      border-color: #1db58a;
+      color: #b8ffe6;
+    }
+    .mini-btn.toggle-off {
+      border-color: var(--border);
+      color: var(--muted);
+    }
     .header-grid-row.removed {
       opacity: 0.55;
     }
     .removed-note {
       font-size: 12px;
       color: #ffb3b3;
+    }
+    .filldown-note {
+      font-size: 12px;
+      color: #b8ffe6;
     }
     .inline-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .mini-btn {
@@ -273,6 +285,7 @@
       headerOverrides: new Map(),
       allHeaderOptions: [],
       removedHeaders: new Set(),
+      fillDownHeaders: new Set(),
       mergedRows: [],
       folderSelections: 0,
     };
@@ -356,6 +369,7 @@
       state.headerOverrides = new Map();
       state.allHeaderOptions = [];
       state.removedHeaders = new Set();
+      state.fillDownHeaders = new Set();
       state.mergedRows = [];
       state.folderSelections = 0;
       els.fileInput.value = '';
@@ -429,31 +443,14 @@
       return bestIndex;
     }
 
-    function shouldFillDownColumn(header) {
-      const h = normalizeHeader(header);
-      return h && !/(amount|debit|credit|qty|quantity|rate|price|total|balance|id|number)$/.test(h);
-    }
-
-    function fillDownRows(headers, dataRows) {
-      const lastSeen = new Array(headers.length).fill('');
-      return dataRows.map(row => {
-        const next = [...row];
-        headers.forEach((header, i) => {
-          const value = String(next[i] ?? '').trim();
-          if (value !== '') lastSeen[i] = next[i];
-          else if (shouldFillDownColumn(header) && String(lastSeen[i] ?? '').trim() !== '') next[i] = lastSeen[i];
-        });
-        return next;
-      });
-    }
-
+    
     function sheetToDataset(rows, sourceName, sheetName) {
       if (!rows || !rows.length) return null;
       const headerRowIndex = pickHeaderRow(rows);
       const rawHeaders = (rows[headerRowIndex] || []).map(v => String(v ?? '').trim());
       const headers = rawHeaders.map((h, i) => h || `Column ${i + 1}`);
       const rawBodyRows = rows.slice(headerRowIndex + 1).filter(r => r.some(v => String(v ?? '').trim() !== ''));
-      const bodyRows = fillDownRows(headers, rawBodyRows);
+      const bodyRows = rawBodyRows; // No fill down, keep original values
       const objects = bodyRows.map(row => {
         const obj = {};
         headers.forEach((h, i) => obj[h] = row[i] ?? '');
@@ -546,10 +543,12 @@
                   <option value="">Select common name</option>
                   ${state.allHeaderOptions.map(opt => `<option value="${escapeHtml(opt)}" ${opt === current ? 'selected' : ''}>${escapeHtml(opt)}</option>`).join('')}
                 </select>
+                <button type="button" class="mini-btn ${state.fillDownHeaders.has(item.norm) ? 'toggle-on' : 'toggle-off'} toggle-filldown-btn" data-norm="${escapeHtml(item.norm)}">${state.fillDownHeaders.has(item.norm) ? 'Fill Down On' : 'Fill Down Off'}</button>
                 <button type="button" class="mini-btn remove toggle-remove-btn" data-norm="${escapeHtml(item.norm)}">${item.removed ? 'Restore' : 'Remove'}</button>
               </div>
               <input class="header-name-input rename-input" data-norm="${escapeHtml(item.norm)}" value="${escapeHtml(current)}" placeholder="Rename common header" ${item.removed ? 'disabled' : ''} />
               ${item.removed ? '<div class="removed-note">This header will be excluded from the merged output.</div>' : ''}
+              ${!item.removed && state.fillDownHeaders.has(item.norm) ? '<div class="filldown-note">Blank cells in this final column will be filled down during merge.</div>' : ''}
             </div>
           </div>
         `;
@@ -563,6 +562,15 @@
           buildUnifiedHeaders();
           renderHeaderCatalog();
           updateStats();
+        });
+      });
+
+      document.querySelectorAll('.toggle-filldown-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+          const norm = e.currentTarget.getAttribute('data-norm');
+          if (state.fillDownHeaders.has(norm)) state.fillDownHeaders.delete(norm);
+          else state.fillDownHeaders.add(norm);
+          renderHeaderCatalog();
         });
       });
 
@@ -631,6 +639,23 @@
       log(`Parsed ${state.datasets.length} dataset(s).`);
     }
 
+    function applyFillDownToMergedRows(rows, headers) {
+      if (!rows.length || !headers.length) return rows;
+      const lastSeen = Object.fromEntries(headers.map(h => [h, '']));
+      return rows.map(row => {
+        const next = { ...row };
+        headers.forEach(header => {
+          const value = String(next[header] ?? '').trim();
+          if (value !== '') {
+            lastSeen[header] = next[header];
+          } else if (String(lastSeen[header] ?? '').trim() !== '') {
+            next[header] = lastSeen[header];
+          }
+        });
+        return next;
+      });
+    }
+
     function prepareMerge() {
       if (!state.datasets.length) {
         log('Scan files first.', 'warn');
@@ -670,6 +695,13 @@
         displayHeaders.forEach(h => obj[h] = r[h] ?? '');
         return obj;
       });
+
+      const fillDownFinalHeaders = [...new Set(
+        activeHeaders
+          .filter(h => state.fillDownHeaders.has(h.norm))
+          .map(h => state.headerOverrides.get(h.norm) || h.label)
+      )];
+      state.mergedRows = applyFillDownToMergedRows(state.mergedRows, fillDownFinalHeaders);
 
       renderPreview(displayHeaders, state.mergedRows);
       els.previewMeta.textContent = `Prepared ${state.mergedRows.length} merged row(s) with ${displayHeaders.length} column(s).`;
